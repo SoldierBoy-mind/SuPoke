@@ -45,8 +45,13 @@ function getEff(atk, def) {
   return EFF_DATA[atk][ALL_TYPES.indexOf(def)];
 }
 
+// 8-directional (Moore) adjacency — must stay in sync with DIRS in src/types.js.
 function getNeighbors(i, j, N) {
-  return [[-1,0],[1,0],[0,-1],[0,1]]
+  return [
+    [-1,-1],[-1,0],[-1,1],
+    [ 0,-1],       [ 0,1],
+    [ 1,-1],[ 1,0],[ 1,1],
+  ]
     .map(([di,dj]) => [i+di, j+dj])
     .filter(([ni,nj]) => ni >= 0 && ni < N && nj >= 0 && nj < N);
 }

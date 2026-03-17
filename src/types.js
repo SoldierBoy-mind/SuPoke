@@ -88,11 +88,15 @@ export const getEffectiveness = (attacker, defender, integer = true) => {
 // ── Grid geometry ─────────────────────────────────────────────────────────────
 
 /**
- * Unit offsets for 4-directional (Von Neumann) adjacency: up, down, left, right.
- * Exported so modules that iterate neighbours can use the same constant.
+ * Unit offsets for 8-directional (Moore) adjacency: all orthogonal and diagonal
+ * neighbours. Exported so modules that iterate neighbours can use the same constant.
  * @type {Array<[number, number]>}
  */
-export const DIRS = [[-1,0],[1,0],[0,-1],[0,1]];
+export const DIRS = [
+  [-1,-1],[-1,0],[-1,1],
+  [ 0,-1],       [ 0,1],
+  [ 1,-1],[ 1,0],[ 1,1],
+];
 
 /**
  * Returns all in-bounds 4-directional neighbours of cell (i, j) in an N×N grid.
