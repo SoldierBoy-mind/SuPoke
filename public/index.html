@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SuPoke — Pokémon Type Puzzle</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+<div class="app">
+
+  <header class="app-header">
+    <h1>SuPoke</h1>
+    <p class="subtitle">A Sudoku-style logic puzzle based on Pokémon type effectiveness</p>
+  </header>
+
+  <main class="app-main">
+
+    <!-- ── Controls ─────────────────────────────────────────────────────── -->
+    <section class="card controls-card">
+      <div class="size-selector">
+        <span class="label">Grid size</span>
+        <div class="size-buttons" role="group" aria-label="Grid size">
+          <button class="size-btn active" data-n="3">3 × 3</button>
+          <button class="size-btn"        data-n="4">4 × 4</button>
+          <button class="size-btn"        data-n="5">5 × 5</button>
+        </div>
+      </div>
+      <button id="generate-btn" class="btn btn-primary">Generate Puzzle</button>
+    </section>
+
+    <!-- ── Status bar ────────────────────────────────────────────────────── -->
+    <div id="status" class="status-bar" role="status" aria-live="polite"></div>
+
+    <!-- ── Puzzle area (hidden until a puzzle is generated) ────────────── -->
+    <div id="puzzle-area" hidden>
+
+      <!-- Active types -->
+      <section class="card">
+        <h2 class="section-title">Active Types</h2>
+        <div id="types-display" class="types-list"></div>
+      </section>
+
+      <!-- Effectiveness matrix (collapsible) -->
+      <section class="card">
+        <button id="matrix-toggle" class="collapsible-header" aria-expanded="false" aria-controls="matrix-content">
+          <span>Effectiveness Matrix</span>
+          <span class="chevron" aria-hidden="true">›</span>
+        </button>
+        <div id="matrix-content" class="collapsible-body" hidden>
+          <p class="matrix-hint">
+            Row&thinsp;=&thinsp;attacker &nbsp;·&nbsp; Column&thinsp;=&thinsp;defender
+            &nbsp;&nbsp;
+            <span class="legend">
+              <span class="legend-item eff-super">2×</span>
+              <span class="legend-item eff-weak">½×</span>
+              <span class="legend-item eff-immune">0×</span>
+              <span class="legend-item eff-normal">1×</span>
+            </span>
+          </p>
+          <div class="table-scroll">
+            <table id="eff-matrix" class="eff-table"></table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Puzzle constraint grid -->
+      <section class="card">
+        <h2 class="section-title">
+          Puzzle Grid
+          <span class="section-hint">I = damage inflicted on neighbours &nbsp;·&nbsp; R = damage received</span>
+        </h2>
+        <div id="puzzle-grid" class="grid-container"></div>
+      </section>
+
+      <!-- Solve button -->
+      <div class="action-row">
+        <button id="solve-btn" class="btn btn-secondary">Solve Puzzle</button>
+      </div>
+
+      <!-- Solution (hidden until solved) -->
+      <section id="solution-section" class="card" hidden>
+        <h2 class="section-title">Solution</h2>
+        <div id="solution-grid" class="grid-container"></div>
+        <div id="verify-result" class="verify-result"></div>
+      </section>
+
+    </div><!-- /#puzzle-area -->
+
+  </main>
+</div><!-- /.app -->
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "supoke",
+  "version": "1.0.0",
+  "description": "A Sudoku-style puzzle game based on Pokémon type effectiveness.",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start": "node server.js",
+    "cli":   "node main.js"
+  },
+  "license": "MIT"
+}
