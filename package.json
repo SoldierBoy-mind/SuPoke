@@ -5,7 +5,7 @@
   "type": "module",
   "main": "main.js",
   "scripts": {
-    "start": "node server.js",
+    "dev":   "vercel dev",
     "cli":   "node main.js"
   },
   "license": "MIT"
