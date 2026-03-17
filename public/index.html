@@ -17,7 +17,7 @@
 
   <main class="app-main">
 
-    <!-- ── Controls ─────────────────────────────────────────────────────── -->
+    <!-- ── Controls ──────────────────────────────────────────────────────── -->
     <section class="card controls-card">
       <div class="size-selector">
         <span class="label">Grid size</span>
@@ -30,10 +30,10 @@
       <button id="generate-btn" class="btn btn-primary">Generate Puzzle</button>
     </section>
 
-    <!-- ── Status bar ────────────────────────────────────────────────────── -->
+    <!-- ── Status bar ─────────────────────────────────────────────────────── -->
     <div id="status" class="status-bar" role="status" aria-live="polite"></div>
 
-    <!-- ── Puzzle area (hidden until a puzzle is generated) ────────────── -->
+    <!-- ── Puzzle area (hidden until a puzzle is generated) ───────────────── -->
     <div id="puzzle-area" hidden>
 
       <!-- Active types -->
@@ -44,7 +44,8 @@
 
       <!-- Effectiveness matrix (collapsible) -->
       <section class="card">
-        <button id="matrix-toggle" class="collapsible-header" aria-expanded="false" aria-controls="matrix-content">
+        <button id="matrix-toggle" class="collapsible-header"
+                aria-expanded="false" aria-controls="matrix-content">
           <span>Effectiveness Matrix</span>
           <span class="chevron" aria-hidden="true">›</span>
         </button>
@@ -65,21 +66,54 @@
         </div>
       </section>
 
-      <!-- Puzzle constraint grid -->
-      <section class="card">
-        <h2 class="section-title">
-          Puzzle Grid
-          <span class="section-hint">I = damage inflicted on neighbours &nbsp;·&nbsp; R = damage received</span>
-        </h2>
-        <div id="puzzle-grid" class="grid-container"></div>
+      <!-- ── Interactive play section ─────────────────────────────────────── -->
+      <section class="card play-card">
+
+        <div class="play-header">
+          <h2 class="section-title">
+            Solve the Puzzle
+            <span class="section-hint">
+              Click a cell, then choose a type · N = notes · ←→↑↓ to navigate · Del to clear
+            </span>
+          </h2>
+          <div id="progress" class="progress-pill">0 / 0</div>
+        </div>
+
+        <!-- Interactive grid cells are injected here by app.js -->
+        <div id="play-grid" class="grid-container play-grid"></div>
+
+        <!-- Type picker — revealed when a cell is selected ──────────────── -->
+        <div id="type-picker" class="type-picker" hidden>
+          <div class="picker-top">
+            <span id="picker-label" class="picker-label">Select a type for this cell</span>
+            <div class="picker-actions">
+              <button id="notes-toggle" class="btn-tag" title="Toggle notes mode (N)">
+                ✎ Notes
+              </button>
+              <button id="clear-btn" class="btn-tag btn-tag-danger" disabled>
+                ✕ Clear
+              </button>
+            </div>
+          </div>
+          <!-- Coloured type buttons injected by app.js -->
+          <div id="picker-types" class="picker-types"></div>
+        </div>
+
       </section>
 
-      <!-- Solve button -->
-      <div class="action-row">
-        <button id="solve-btn" class="btn btn-secondary">Solve Puzzle</button>
+      <!-- ── Action row ────────────────────────────────────────────────────── -->
+      <div class="action-row action-spread">
+        <button id="reset-btn"         class="btn btn-ghost">Reset</button>
+        <button id="show-solution-btn" class="btn btn-ghost">Show Solution</button>
+        <button id="submit-btn"        class="btn btn-primary" disabled>
+          Submit Solution
+        </button>
       </div>
 
-      <!-- Solution (hidden until solved) -->
+      <!-- ── Validation result ─────────────────────────────────────────────── -->
+      <div id="validation-result" class="validation-result" hidden></div>
+
+      <!-- ── Auto-solved solution (revealed by "Show Solution") ───────────── -->
       <section id="solution-section" class="card" hidden>
         <h2 class="section-title">Solution</h2>
         <div id="solution-grid" class="grid-container"></div>

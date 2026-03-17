@@ -1,111 +1,150 @@
 /**
- * SuPoke — Frontend application.
+ * SuPoke — Interactive frontend application.
  *
- * Manages all client-side behaviour:
- *   - Grid-size selection
- *   - Communicating with the backend API
- *   - Rendering the puzzle constraint grid and solution grid
- *   - Status messages and loading states
+ * Handles the full user-facing puzzle experience: grid generation, cell
+ * interaction, type picker, notes mode, keyboard navigation, local
+ * validation, and solution reveal.
  *
- * No external libraries are used. The module is a plain script loaded at the
- * bottom of index.html so all DOM elements are available immediately.
+ * No external libraries used. Loaded at the bottom of index.html so all
+ * DOM elements are immediately available.
  */
 
-// ── Type colours ──────────────────────────────────────────────────────────────
+// ── Type data (duplicated from server for local validation) ───────────────────
 
-/**
- * Background and foreground colours for all 18 Pokémon types.
- * Used to colour type badges, matrix headers, and solution-grid cells.
- * @type {Record<string, { bg: string, text: string }>}
- */
-const TYPE_COLORS = {
-  Normal:   { bg: '#A8A878', text: '#fff' },
-  Fighting: { bg: '#C03028', text: '#fff' },
-  Flying:   { bg: '#A890F0', text: '#fff' },
-  Poison:   { bg: '#A040A0', text: '#fff' },
-  Ground:   { bg: '#E0C068', text: '#333' },
-  Rock:     { bg: '#B8A038', text: '#fff' },
-  Bug:      { bg: '#A8B820', text: '#fff' },
-  Ghost:    { bg: '#705898', text: '#fff' },
-  Steel:    { bg: '#B8B8D0', text: '#333' },
-  Fire:     { bg: '#F08030', text: '#fff' },
-  Water:    { bg: '#6890F0', text: '#fff' },
-  Grass:    { bg: '#78C850', text: '#fff' },
-  Electric: { bg: '#F8D030', text: '#333' },
-  Psychic:  { bg: '#F85888', text: '#fff' },
-  Ice:      { bg: '#98D8D8', text: '#333' },
-  Dragon:   { bg: '#7038F8', text: '#fff' },
-  Dark:     { bg: '#705848', text: '#fff' },
-  Fairy:    { bg: '#EE99AC', text: '#333' },
+const ALL_TYPES = [
+  'Normal','Fighting','Flying','Poison','Ground','Rock','Bug','Ghost','Steel',
+  'Fire','Water','Grass','Electric','Psychic','Ice','Dragon','Dark','Fairy'
+];
+
+// Row = attacker, columns match ALL_TYPES order above.
+// Values are integer-scaled (× 2): 0→0, 0.5→1, 1→2, 2→4.
+// Must stay in sync with dataInt in src/types.js so local validation
+// produces the same constraint sums as the server.
+const EFF_DATA = {
+  Normal:   [2,2,2,2,2,1,2,0,1,2,2,2,2,2,2,2,2,2],
+  Fighting: [4,2,1,1,2,4,1,0,4,2,2,2,2,1,4,2,4,1],
+  Flying:   [2,4,2,2,2,1,4,2,1,2,2,4,1,2,2,2,2,2],
+  Poison:   [2,2,2,1,1,1,2,1,0,2,2,4,2,2,2,2,2,4],
+  Ground:   [2,2,0,4,2,4,1,2,4,4,2,1,4,2,2,2,2,2],
+  Rock:     [2,1,4,2,1,2,4,2,1,4,2,2,2,2,4,2,2,2],
+  Bug:      [2,1,1,1,2,2,2,1,1,1,2,4,2,4,2,2,4,1],
+  Ghost:    [0,2,2,2,2,2,2,4,2,2,2,2,2,4,2,2,1,0],
+  Steel:    [2,2,2,2,2,4,2,2,1,1,1,2,1,2,4,2,2,4],
+  Fire:     [2,2,2,2,2,1,4,2,4,1,1,4,2,2,4,1,2,2],
+  Water:    [2,2,2,2,4,4,2,2,2,4,1,1,2,2,2,1,2,2],
+  Grass:    [2,2,1,1,4,4,1,2,1,1,4,1,2,2,2,1,2,2],
+  Electric: [2,2,4,2,0,2,2,2,2,2,4,1,1,2,2,1,2,2],
+  Psychic:  [2,4,2,4,2,2,2,2,1,2,2,2,2,1,2,2,0,2],
+  Ice:      [2,2,4,2,4,2,2,2,1,1,1,4,2,2,1,4,2,2],
+  Dragon:   [2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,4,2,0],
+  Dark:     [2,1,2,2,2,2,2,4,2,2,2,2,2,4,2,2,1,1],
+  Fairy:    [2,4,2,1,2,2,2,2,1,1,2,2,2,2,2,4,4,2],
 };
+
+function getEff(atk, def) {
+  return EFF_DATA[atk][ALL_TYPES.indexOf(def)];
+}
+
+function getNeighbors(i, j, N) {
+  return [[-1,0],[1,0],[0,-1],[0,1]]
+    .map(([di,dj]) => [i+di, j+dj])
+    .filter(([ni,nj]) => ni >= 0 && ni < N && nj >= 0 && nj < N);
+}
+
+// ── Visual maps ───────────────────────────────────────────────────────────────
+
+/** 2-char abbreviations used in note chips so they fit inside small cells. */
+const TYPE_ABBR = {
+  Normal:'No', Fighting:'Ft', Flying:'Fl', Poison:'Po', Ground:'Gr',
+  Rock:'Ro', Bug:'Bu', Ghost:'Gh', Steel:'St', Fire:'Fr',
+  Water:'Wa', Grass:'Gs', Electric:'El', Psychic:'Ps', Ice:'Ic',
+  Dragon:'Dr', Dark:'Dk', Fairy:'Fa',
+};
+
+const TYPE_COLORS = {
+  Normal:   { bg:'#A8A878', text:'#fff' },
+  Fighting: { bg:'#C03028', text:'#fff' },
+  Flying:   { bg:'#A890F0', text:'#fff' },
+  Poison:   { bg:'#A040A0', text:'#fff' },
+  Ground:   { bg:'#E0C068', text:'#333' },
+  Rock:     { bg:'#B8A038', text:'#fff' },
+  Bug:      { bg:'#A8B820', text:'#fff' },
+  Ghost:    { bg:'#705898', text:'#fff' },
+  Steel:    { bg:'#B8B8D0', text:'#333' },
+  Fire:     { bg:'#F08030', text:'#fff' },
+  Water:    { bg:'#6890F0', text:'#fff' },
+  Grass:    { bg:'#78C850', text:'#fff' },
+  Electric: { bg:'#F8D030', text:'#333' },
+  Psychic:  { bg:'#F85888', text:'#fff' },
+  Ice:      { bg:'#98D8D8', text:'#333' },
+  Dragon:   { bg:'#7038F8', text:'#fff' },
+  Dark:     { bg:'#705848', text:'#fff' },
+  Fairy:    { bg:'#EE99AC', text:'#333' },
+};
+
+function typeColor(type) {
+  return TYPE_COLORS[type] ?? { bg:'#888', text:'#fff' };
+}
+
+function applyTypeStyle(el, type) {
+  const { bg, text } = typeColor(type);
+  el.style.backgroundColor = bg;
+  el.style.color = text;
+}
+
+function fmt(n) {
+  return n % 1 === 0 ? String(n) : n.toFixed(1);
+}
 
 // ── Application state ─────────────────────────────────────────────────────────
 
-/**
- * Central state object. Mutated by event handlers; read by render functions.
- * @type {{ n: number, puzzle: object|null, solution: object|null }}
- */
 const state = {
-  n:        3,
-  puzzle:   null,   // Response from POST /api/generate
-  solution: null,   // Response from POST /api/solve
+  n:               3,
+  puzzle:          null,   // Response from POST /api/generate
+  userGrid:        null,   // string|null[][]  — player's answers
+  notes:           null,   // Set<string>[][]  — pencil marks per cell
+  selected:        null,   // { r, c } or null
+  notesMode:       false,
+  wrongCells:      [],     // [{ r, c }] from last failed validation
 };
+
+function initGameState() {
+  const n = state.puzzle.n;
+  state.userGrid   = Array.from({length:n}, () => Array(n).fill(null));
+  state.notes      = Array.from({length:n}, () => Array.from({length:n}, () => new Set()));
+  state.selected   = null;
+  state.notesMode  = false;
+  state.wrongCells = [];
+}
 
 // ── DOM references ────────────────────────────────────────────────────────────
 
 const dom = {
-  generateBtn:     document.getElementById('generate-btn'),
-  solveBtn:        document.getElementById('solve-btn'),
-  status:          document.getElementById('status'),
-  puzzleArea:      document.getElementById('puzzle-area'),
-  typesDisplay:    document.getElementById('types-display'),
-  matrixToggle:    document.getElementById('matrix-toggle'),
-  matrixContent:   document.getElementById('matrix-content'),
-  effMatrix:       document.getElementById('eff-matrix'),
-  puzzleGrid:      document.getElementById('puzzle-grid'),
-  solutionSection: document.getElementById('solution-section'),
-  solutionGrid:    document.getElementById('solution-grid'),
-  verifyResult:    document.getElementById('verify-result'),
+  generateBtn:      document.getElementById('generate-btn'),
+  status:           document.getElementById('status'),
+  puzzleArea:       document.getElementById('puzzle-area'),
+  typesDisplay:     document.getElementById('types-display'),
+  matrixToggle:     document.getElementById('matrix-toggle'),
+  matrixContent:    document.getElementById('matrix-content'),
+  effMatrix:        document.getElementById('eff-matrix'),
+  playGrid:         document.getElementById('play-grid'),
+  typePicker:       document.getElementById('type-picker'),
+  pickerTypes:      document.getElementById('picker-types'),
+  pickerLabel:      document.getElementById('picker-label'),
+  notesToggle:      document.getElementById('notes-toggle'),
+  clearBtn:         document.getElementById('clear-btn'),
+  resetBtn:         document.getElementById('reset-btn'),
+  showSolutionBtn:  document.getElementById('show-solution-btn'),
+  submitBtn:        document.getElementById('submit-btn'),
+  progress:         document.getElementById('progress'),
+  validationResult: document.getElementById('validation-result'),
+  solutionSection:  document.getElementById('solution-section'),
+  solutionGrid:     document.getElementById('solution-grid'),
+  verifyResult:     document.getElementById('verify-result'),
 };
-
-// ── Utilities ─────────────────────────────────────────────────────────────────
-
-/**
- * Formats a number for display: integers without decimal point, others to 1 d.p.
- * @param {number} n
- * @returns {string}
- */
-function formatNum(n) {
-  return n % 1 === 0 ? String(n) : n.toFixed(1);
-}
-
-/**
- * Returns the colour pair for a given type name, falling back to neutral grey.
- * @param {string} type
- * @returns {{ bg: string, text: string }}
- */
-function typeColor(type) {
-  return TYPE_COLORS[type] ?? { bg: '#888', text: '#fff' };
-}
-
-/**
- * Applies a type's colours directly to a DOM element's inline styles.
- * @param {HTMLElement} el
- * @param {string}      type
- */
-function applyTypeStyle(el, type) {
-  const { bg, text } = typeColor(type);
-  el.style.backgroundColor = bg;
-  el.style.color            = text;
-}
 
 // ── Status bar ────────────────────────────────────────────────────────────────
 
-/**
- * Updates the status bar.
- * @param {'loading'|'success'|'error'|''} kind    - Visual style variant.
- * @param {string}                          message - Text to display.
- */
 function setStatus(kind, message = '') {
   dom.status.className = 'status-bar' + (kind ? ` status-${kind}` : '');
   dom.status.innerHTML = kind === 'loading'
@@ -113,169 +152,333 @@ function setStatus(kind, message = '') {
     : message;
 }
 
-// ── Reset ─────────────────────────────────────────────────────────────────────
+// ── Cell selection ────────────────────────────────────────────────────────────
 
-/**
- * Hides the puzzle area and clears all ephemeral state.
- * Called before generating a new puzzle or when the grid size changes.
- */
-function resetPuzzle() {
-  state.puzzle   = null;
-  state.solution = null;
-  dom.puzzleArea.hidden      = true;
-  dom.solutionSection.hidden = true;
-  setStatus('');
+function selectCell(r, c) {
+  state.selected = { r, c };
+  state.wrongCells = [];
+  dom.validationResult.hidden = true;
+  renderAllCells();
+  showPicker();
+  updateClearBtn();
 }
 
-// ── Event handlers ────────────────────────────────────────────────────────────
+function deselectCell() {
+  state.selected = null;
+  renderAllCells();
+  hidePicker();
+}
 
-// Grid-size buttons
-document.querySelectorAll('.size-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    state.n = parseInt(btn.dataset.n, 10);
-    resetPuzzle();
-  });
-});
+// ── Type assignment ───────────────────────────────────────────────────────────
 
-// Generate button — calls POST /api/generate
-dom.generateBtn.addEventListener('click', async () => {
-  dom.generateBtn.disabled    = true;
-  dom.generateBtn.textContent = 'Generating…';
-  resetPuzzle();
-  setStatus('loading', 'Generating puzzle…');
-
-  try {
-    const res = await fetch('/api/generate', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ n: state.n }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error ?? `Server error ${res.status}`);
-    }
-
-    state.puzzle = await res.json();
-    const a = state.puzzle.attempts;
-    setStatus('success', `Unique puzzle generated in ${a} attempt${a === 1 ? '' : 's'}.`);
-    renderPuzzle();
-    dom.puzzleArea.hidden = false;
-
-  } catch (err) {
-    setStatus('error', err.message);
-
-  } finally {
-    dom.generateBtn.disabled    = false;
-    dom.generateBtn.textContent = 'Generate Puzzle';
+function assignType(type) {
+  const { r, c } = state.selected;
+  if (state.notesMode) {
+    const noteSet = state.notes[r][c];
+    if (noteSet.has(type)) noteSet.delete(type);
+    else noteSet.add(type);
+    renderCell(r, c);
+    renderPicker();
+    return;
   }
-});
+  // Normal mode — assign and clear notes for this cell
+  state.userGrid[r][c] = type;
+  state.notes[r][c].clear();
+  renderCell(r, c);
+  updateProgress();
+  updateSubmitButton();
 
-// Solve button — calls POST /api/solve
-dom.solveBtn.addEventListener('click', async () => {
-  if (!state.puzzle) return;
-  dom.solveBtn.disabled    = true;
-  dom.solveBtn.textContent = 'Solving…';
-  setStatus('loading', 'Solving puzzle…');
-
-  try {
-    const { sel, inflicted, received, n } = state.puzzle;
-    const res = await fetch('/api/solve', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ sel, inflicted, received, n }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error ?? `Server error ${res.status}`);
-    }
-
-    state.solution = await res.json();
-    const label = state.solution.unique ? 'Unique solution found.' : 'Multiple solutions detected.';
-    setStatus('success', label);
-    renderSolution();
-    dom.solutionSection.hidden = false;
-    dom.solutionSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-  } catch (err) {
-    setStatus('error', err.message);
-
-  } finally {
-    dom.solveBtn.disabled    = false;
-    dom.solveBtn.textContent = 'Solve Puzzle';
+  // Auto-advance to next empty cell
+  const next = nextEmptyCell(r, c);
+  if (next) {
+    selectCell(next.r, next.c);
+  } else {
+    renderPicker();
+    updateClearBtn();
   }
-});
+}
 
-// Effectiveness matrix collapsible
-dom.matrixToggle.addEventListener('click', () => {
-  const expanded = dom.matrixToggle.getAttribute('aria-expanded') === 'true';
-  dom.matrixToggle.setAttribute('aria-expanded', String(!expanded));
-  dom.matrixContent.hidden = expanded;
-});
+function clearSelectedCell() {
+  if (!state.selected) return;
+  const { r, c } = state.selected;
+  state.userGrid[r][c] = null;
+  state.notes[r][c].clear();
+  renderCell(r, c);
+  renderPicker();
+  updateProgress();
+  updateSubmitButton();
+  updateClearBtn();
+}
 
-// ── Render: puzzle ────────────────────────────────────────────────────────────
+// ── Notes mode ────────────────────────────────────────────────────────────────
+
+function toggleNotesMode() {
+  state.notesMode = !state.notesMode;
+  dom.notesToggle.classList.toggle('active', state.notesMode);
+  if (state.selected) renderPicker();
+}
+
+// ── Keyboard navigation ───────────────────────────────────────────────────────
+
+function navigateCell(dr, dc) {
+  const N = state.puzzle.n;
+  const { r, c } = state.selected ?? { r: 0, c: -1 };
+  const nr = Math.max(0, Math.min(N - 1, r + dr));
+  const nc = Math.max(0, Math.min(N - 1, c + dc));
+  selectCell(nr, nc);
+}
+
+/** Returns the next cell with no assigned type after (r, c) in row-major order. */
+function nextEmptyCell(r, c) {
+  const N = state.puzzle.n;
+  let pos = r * N + c + 1;
+  while (pos < N * N) {
+    const nr = Math.floor(pos / N), nc = pos % N;
+    if (state.userGrid[nr][nc] === null) return { r: nr, c: nc };
+    pos++;
+  }
+  return null;
+}
+
+// ── Progress & submit state ───────────────────────────────────────────────────
+
+function isGridComplete() {
+  return state.userGrid.every(row => row.every(v => v !== null));
+}
+
+function updateProgress() {
+  const N = state.puzzle.n;
+  const filled = state.userGrid.flat().filter(v => v !== null).length;
+  const total  = N * N;
+  dom.progress.textContent = `${filled} / ${total}`;
+  dom.progress.classList.toggle('complete', filled === total);
+}
+
+function updateSubmitButton() {
+  dom.submitBtn.disabled = !isGridComplete();
+}
+
+function updateClearBtn() {
+  if (!state.selected) { dom.clearBtn.disabled = true; return; }
+  const { r, c } = state.selected;
+  dom.clearBtn.disabled =
+    state.userGrid[r][c] === null && state.notes[r][c].size === 0;
+}
+
+// ── Local validation ──────────────────────────────────────────────────────────
 
 /**
- * Renders the active types list, effectiveness matrix, and puzzle constraint grid
- * from state.puzzle.
+ * Validates the completed user grid against the Latin-square and
+ * constraint-sum rules without hitting the server.
+ * @returns {{ valid: boolean, wrongCells: {r:number,c:number}[], message: string }}
  */
-function renderPuzzle() {
-  const { sel, eSub, inflicted, received, n } = state.puzzle;
+function validateUserGrid() {
+  const { sel, inflicted, received, n } = state.puzzle;
+  const grid   = state.userGrid;
+  const wrong  = new Set();
 
-  // Active type badges
+  // Latin square: each type appears exactly once per row and column
+  for (let i = 0; i < n; i++) {
+    const rowSeen = new Map(), colSeen = new Map();
+    for (let j = 0; j < n; j++) {
+      const rv = grid[i][j], cv = grid[j][i];
+      if (rowSeen.has(rv)) { wrong.add(`${i},${rowSeen.get(rv)}`); wrong.add(`${i},${j}`); }
+      else rowSeen.set(rv, j);
+      if (colSeen.has(cv)) { wrong.add(`${colSeen.get(cv)},${i}`); wrong.add(`${j},${i}`); }
+      else colSeen.set(cv, j);
+    }
+  }
+
+  // Constraint sums
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      let inf = 0, rec = 0;
+      for (const [ni, nj] of getNeighbors(i, j, n)) {
+        inf += getEff(grid[i][j], grid[ni][nj]);
+        rec += getEff(grid[ni][nj], grid[i][j]);
+      }
+      if (Math.abs(inf - inflicted[i][j]) > 1e-9 || Math.abs(rec - received[i][j]) > 1e-9) {
+        wrong.add(`${i},${j}`);
+      }
+    }
+  }
+
+  const wrongCells = [...wrong].map(k => {
+    const [r,c] = k.split(',').map(Number);
+    return { r, c };
+  });
+
+  const valid = wrongCells.length === 0;
+  const message = valid
+    ? `Correct! All ${n*n} cells placed and all constraints satisfied.`
+    : `${wrongCells.length} cell${wrongCells.length > 1 ? 's' : ''} violated the rules — highlighted in red.`;
+
+  return { valid, wrongCells, message };
+}
+
+// ── Render: full puzzle ───────────────────────────────────────────────────────
+
+function renderPuzzle() {
+  const { sel, eSub } = state.puzzle;
+
+  // Type badges
   dom.typesDisplay.innerHTML = '';
-  sel.forEach(type => {
+  for (const type of sel) {
     const badge = document.createElement('span');
     badge.className   = 'type-badge';
     badge.textContent = type;
     applyTypeStyle(badge, type);
     dom.typesDisplay.appendChild(badge);
-  });
+  }
 
-  // Effectiveness matrix table
   renderMatrix(sel, eSub);
+  renderPlayGrid();
+  updateProgress();
+  updateSubmitButton();
+  hidePicker();
 
-  // Puzzle constraint grid (inflicted / received per cell)
-  dom.puzzleGrid.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
-  dom.puzzleGrid.innerHTML = '';
+  dom.validationResult.hidden = true;
+  dom.solutionSection.hidden  = true;
+}
 
-  for (let i = 0; i < n; i++) {
-    for (let j = 0; j < n; j++) {
+// ── Render: play grid ─────────────────────────────────────────────────────────
+
+function renderPlayGrid() {
+  const { n, inflicted, received } = state.puzzle;
+  dom.playGrid.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+  dom.playGrid.innerHTML = '';
+
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
       const cell = document.createElement('div');
-      cell.className = 'cell puzzle-cell';
+      cell.className = 'play-cell';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
       cell.innerHTML =
-        `<span class="cell-label-i">I: ${formatNum(inflicted[i][j])}</span>` +
-        `<span class="cell-label-r">R: ${formatNum(received[i][j])}</span>`;
-      dom.puzzleGrid.appendChild(cell);
+        `<div class="cell-notes"></div>` +
+        `<div class="cell-value"></div>` +
+        `<div class="cell-constraints">` +
+          `<span class="c-i">I&thinsp;${fmt(inflicted[r][c])}</span>` +
+          `<span class="c-r">R&thinsp;${fmt(received[r][c])}</span>` +
+        `</div>`;
+      cell.addEventListener('click', () => {
+        if (state.selected?.r === r && state.selected?.c === c) deselectCell();
+        else selectCell(r, c);
+      });
+      dom.playGrid.appendChild(cell);
     }
   }
 }
 
+function renderAllCells() {
+  const { n } = state.puzzle;
+  for (let r = 0; r < n; r++)
+    for (let c = 0; c < n; c++)
+      renderCell(r, c);
+}
+
 /**
- * Builds the effectiveness matrix <table> element.
- * @param {string[]}   sel  - Selected type names (row and column labels).
- * @param {number[][]} eSub - N×N effectiveness values.
+ * Re-renders a single play cell's contents and CSS state classes.
  */
+function renderCell(r, c) {
+  const cell = dom.playGrid.querySelector(`[data-r="${r}"][data-c="${c}"]`);
+  if (!cell) return;
+
+  const type     = state.userGrid[r][c];
+  const noteSet  = state.notes[r][c];
+  const isSel    = state.selected?.r === r && state.selected?.c === c;
+  const isWrong  = state.wrongCells.some(w => w.r === r && w.c === c);
+
+  // Notes area
+  const notesEl = cell.querySelector('.cell-notes');
+  notesEl.innerHTML = '';
+  for (const t of noteSet) {
+    const chip = document.createElement('span');
+    chip.className   = 'note-chip';
+    chip.textContent = TYPE_ABBR[t] ?? t.slice(0, 2);
+    applyTypeStyle(chip, t);
+    notesEl.appendChild(chip);
+  }
+
+  // Main value
+  const valueEl = cell.querySelector('.cell-value');
+  valueEl.innerHTML = '';
+  if (type) {
+    const badge = document.createElement('span');
+    badge.className   = 'cell-type-name';
+    badge.textContent = type;
+    applyTypeStyle(badge, type);
+    valueEl.appendChild(badge);
+  } else {
+    const ph = document.createElement('span');
+    ph.className   = 'cell-placeholder';
+    ph.textContent = '?';
+    valueEl.appendChild(ph);
+  }
+
+  // CSS state
+  cell.classList.toggle('selected', isSel);
+  cell.classList.toggle('wrong',    isWrong && !isSel);
+}
+
+// ── Render: type picker ───────────────────────────────────────────────────────
+
+function showPicker() {
+  const { r, c } = state.selected;
+  dom.pickerLabel.textContent = `Row ${r + 1}, Col ${c + 1}`;
+  renderPicker();
+  dom.typePicker.hidden = false;
+}
+
+function hidePicker() {
+  dom.typePicker.hidden = true;
+}
+
+function renderPicker() {
+  if (!state.selected) return;
+  const { r, c }  = state.selected;
+  const sel        = state.puzzle.sel;
+  const assigned   = state.userGrid[r][c];
+  const noteSet    = state.notes[r][c];
+
+  dom.pickerTypes.innerHTML = '';
+  for (const type of sel) {
+    const btn = document.createElement('button');
+    btn.className   = 'picker-type-btn';
+    btn.textContent = type;
+    applyTypeStyle(btn, type);
+
+    if (state.notesMode) {
+      if (noteSet.has(type)) btn.classList.add('is-noted');
+    } else {
+      if (assigned === type) btn.classList.add('is-assigned');
+    }
+
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      assignType(type);
+    });
+    dom.pickerTypes.appendChild(btn);
+  }
+}
+
+// ── Render: effectiveness matrix ──────────────────────────────────────────────
+
 function renderMatrix(sel, eSub) {
   dom.effMatrix.innerHTML = '';
 
-  // Header row (defender types along the top)
   const head   = dom.effMatrix.insertRow();
   const corner = head.insertCell();
   corner.textContent = 'ATK \\ DEF';
   corner.className   = 'matrix-corner';
 
-  sel.forEach(type => {
+  for (const type of sel) {
     const th = head.insertCell();
     th.textContent = type;
     th.className   = 'matrix-header';
     applyTypeStyle(th, type);
-  });
+  }
 
-  // Data rows (attacker types down the left)
   eSub.forEach((row, i) => {
     const tr    = dom.effMatrix.insertRow();
     const label = tr.insertCell();
@@ -285,7 +488,7 @@ function renderMatrix(sel, eSub) {
 
     row.forEach(val => {
       const td = tr.insertCell();
-      td.textContent = formatNum(val);
+      td.textContent = fmt(val);
       td.className   = 'matrix-cell ' + (
         val === 2   ? 'eff-super'  :
         val === 0.5 ? 'eff-weak'   :
@@ -298,28 +501,186 @@ function renderMatrix(sel, eSub) {
 
 // ── Render: solution ──────────────────────────────────────────────────────────
 
-/**
- * Renders the solution grid and the constraint-verification result from state.solution.
- */
-function renderSolution() {
-  const { solution, verified } = state.solution;
-  const n = state.puzzle.n;
-
+function renderSolution(solution) {
+  const { n } = state.puzzle;
   dom.solutionGrid.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
   dom.solutionGrid.innerHTML = '';
 
-  solution.forEach(row => {
-    row.forEach(type => {
+  for (const row of solution) {
+    for (const type of row) {
       const cell = document.createElement('div');
       cell.className   = 'cell solution-cell';
       cell.textContent = type;
       applyTypeStyle(cell, type);
       dom.solutionGrid.appendChild(cell);
-    });
-  });
-
-  dom.verifyResult.className   = 'verify-result ' + (verified ? 'verify-ok' : 'verify-fail');
-  dom.verifyResult.textContent = verified
-    ? `✓  All ${n * n * 2} constraints satisfied.`
-    : '✗  Verification failed — solution does not match the puzzle constraints.';
+    }
+  }
 }
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+
+function resetGame() {
+  initGameState();
+  renderPlayGrid();
+  hidePicker();
+  updateProgress();
+  updateSubmitButton();
+  dom.validationResult.hidden = true;
+  dom.solutionSection.hidden  = true;
+  setStatus('');
+}
+
+// ── Event handlers ────────────────────────────────────────────────────────────
+
+// Grid-size buttons
+document.querySelectorAll('.size-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.n = parseInt(btn.dataset.n, 10);
+    state.puzzle = null;
+    dom.puzzleArea.hidden = true;
+    setStatus('');
+  });
+});
+
+// Generate
+dom.generateBtn.addEventListener('click', async () => {
+  dom.generateBtn.disabled    = true;
+  dom.generateBtn.textContent = 'Generating…';
+  dom.puzzleArea.hidden       = true;
+  setStatus('loading', 'Generating puzzle…');
+
+  try {
+    const res = await fetch('/api/generate', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ n: state.n }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error ?? `Server error ${res.status}`);
+    }
+    state.puzzle = await res.json();
+    const a = state.puzzle.attempts;
+    setStatus('success', `Unique puzzle generated in ${a} attempt${a === 1 ? '' : 's'}.`);
+    initGameState();
+    renderPuzzle();
+    dom.puzzleArea.hidden = false;
+  } catch (err) {
+    setStatus('error', err.message);
+  } finally {
+    dom.generateBtn.disabled    = false;
+    dom.generateBtn.textContent = 'Generate Puzzle';
+  }
+});
+
+// Reset
+dom.resetBtn.addEventListener('click', resetGame);
+
+// Submit
+dom.submitBtn.addEventListener('click', () => {
+  const result = validateUserGrid();
+  state.wrongCells = result.wrongCells;
+  renderAllCells();
+
+  dom.validationResult.hidden    = false;
+  dom.validationResult.className = 'validation-result ' +
+    (result.valid ? 'validation-success' : 'validation-error');
+  dom.validationResult.textContent = result.message;
+
+  if (!result.valid)
+    dom.validationResult.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+
+// Show Solution — calls POST /api/solve
+dom.showSolutionBtn.addEventListener('click', async () => {
+  if (!state.puzzle) return;
+  dom.showSolutionBtn.disabled    = true;
+  dom.showSolutionBtn.textContent = 'Solving…';
+  setStatus('loading', 'Solving puzzle…');
+
+  try {
+    const { sel, inflicted, received, n } = state.puzzle;
+    const res = await fetch('/api/solve', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ sel, inflicted, received, n }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error ?? `Server error ${res.status}`);
+    }
+    const data = await res.json();
+    const label = data.unique ? 'Unique solution found.' : 'Multiple solutions detected.';
+    setStatus('success', label);
+    renderSolution(data.solution);
+
+    dom.verifyResult.className   = 'verify-result ' + (data.verified ? 'verify-ok' : 'verify-fail');
+    dom.verifyResult.textContent = data.verified
+      ? `✓  All constraints satisfied.`
+      : '✗  Verification failed.';
+    dom.solutionSection.hidden = false;
+    dom.solutionSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (err) {
+    setStatus('error', err.message);
+  } finally {
+    dom.showSolutionBtn.disabled    = false;
+    dom.showSolutionBtn.textContent = 'Show Solution';
+  }
+});
+
+// Notes toggle
+dom.notesToggle.addEventListener('click', toggleNotesMode);
+
+// Clear cell
+dom.clearBtn.addEventListener('click', clearSelectedCell);
+
+// Effectiveness matrix collapsible
+dom.matrixToggle.addEventListener('click', () => {
+  const expanded = dom.matrixToggle.getAttribute('aria-expanded') === 'true';
+  dom.matrixToggle.setAttribute('aria-expanded', String(!expanded));
+  dom.matrixContent.hidden = expanded;
+  dom.matrixToggle.querySelector('.chevron').style.transform =
+    expanded ? '' : 'rotate(90deg)';
+});
+
+// ── Keyboard navigation ───────────────────────────────────────────────────────
+
+document.addEventListener('keydown', e => {
+  if (!state.puzzle) return;
+
+  // Escape — deselect
+  if (e.key === 'Escape') { deselectCell(); return; }
+
+  // Arrow keys — navigate (or select [0,0] if nothing selected)
+  const arrows = { ArrowUp:[-1,0], ArrowDown:[1,0], ArrowLeft:[0,-1], ArrowRight:[0,1] };
+  if (arrows[e.key]) {
+    e.preventDefault();
+    if (!state.selected) { selectCell(0, 0); return; }
+    const [dr, dc] = arrows[e.key];
+    navigateCell(dr, dc);
+    return;
+  }
+
+  if (!state.selected) return;
+
+  // N — toggle notes mode
+  if (e.key === 'n' || e.key === 'N') { toggleNotesMode(); return; }
+
+  // Delete / Backspace — clear cell
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    e.preventDefault();
+    clearSelectedCell();
+    return;
+  }
+});
+
+// ── Click outside grid — deselect ────────────────────────────────────────────
+
+document.addEventListener('click', e => {
+  if (!state.selected) return;
+  if (dom.playGrid.contains(e.target)) return;
+  if (dom.typePicker.contains(e.target)) return;
+  deselectCell();
+});

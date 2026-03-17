@@ -83,8 +83,8 @@ function makePruner(grid, inflicted, received, N) {
 
     if (inf > inflicted[i][j] + 1e-9) return false;
     if (rec > received[i][j]  + 1e-9) return false;
-    if (inflicted[i][j] - inf > rem * 2 + 1e-9) return false;
-    if (received[i][j]  - rec > rem * 2 + 1e-9) return false;
+    if (inflicted[i][j] - inf > rem * 4 + 1e-9) return false;
+    if (received[i][j]  - rec > rem * 4 + 1e-9) return false;
 
     // When all neighbours are known the sums must match exactly.
     // Tolerance of 1e-9 guards against floating-point rounding in the matrix.

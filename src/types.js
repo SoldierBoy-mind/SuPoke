@@ -55,19 +55,34 @@ export const data = {
   "Fairy":    [1,2,1,0.5,1,1,1,1,0.5,0.5,1,1,1,1,1,2,2,1]
 };
 
+// ── Integer effectiveness matrix ──────────────────────────────────────────────
+
+/**
+ * Integer-scaled version of the effectiveness matrix (all values × 2).
+ * Mapping: 0 → 0, 0.5 → 1, 1 → 2, 2 → 4.
+ * Used as the default for all computations so that constraint sums and
+ * solver bounds stay in whole numbers, avoiding any floating-point drift.
+ * The original `data` is kept as the source of truth and is never modified.
+ * @type {Object.<string, number[]>}
+ */
+export const dataInt = Object.fromEntries(
+  Object.entries(data).map(([atk, row]) => [atk, row.map(v => v * 2)])
+);
+
 // ── Type-effectiveness look-up ────────────────────────────────────────────────
 
 /**
- * Returns the damage multiplier when `attacker` targets `defender`.
- * Resolves the defender to a column index via `types`, avoiding any hard-coded
- * offsets in calling code.
- * @param {string} attacker - Attacking Pokémon type name.
- * @param {string} defender - Defending Pokémon type name.
- * @returns {number} Effectiveness multiplier (0, 0.5, 1, or 2).
+ * Returns the effectiveness value when `attacker` targets `defender`.
+ * Uses the integer-scaled matrix by default (0, 1, 2, or 4).
+ * Pass `false` as the third argument to get the original float values (0, 0.5, 1, 2).
+ * @param {string}  attacker  - Attacking Pokémon type name.
+ * @param {string}  defender  - Defending Pokémon type name.
+ * @param {boolean} [integer] - Use integer-scaled matrix (default: true).
+ * @returns {number} Effectiveness value.
  */
-export const getEffectiveness = (attacker, defender) => {
+export const getEffectiveness = (attacker, defender, integer = true) => {
   const i = types.indexOf(defender);
-  return data[attacker][i];
+  return (integer ? dataInt : data)[attacker][i];
 };
 
 // ── Grid geometry ─────────────────────────────────────────────────────────────
