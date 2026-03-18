@@ -141,6 +141,13 @@ function formatHalfNumber(n) {
  * @returns {object} The same puzzle with eSub, inflicted, received halved.
  */
 function normalizePuzzle(puzzle) {
+  // Keep a copy of the raw ×2 integer arrays BEFORE dividing.
+  // These are sent as-is to /api/solve so the server solver always
+  // receives values in the same scale it uses internally.
+  puzzle._rawInflicted = puzzle.inflicted.map(row => [...row]);
+  puzzle._rawReceived  = puzzle.received.map(row => [...row]);
+
+  // Convert to real values (0, 0.5, 1, 2) for display and local validation.
   puzzle.eSub      = puzzle.eSub.map(row => row.map(v => v / 2));
   puzzle.inflicted = puzzle.inflicted.map(row => row.map(v => v / 2));
   puzzle.received  = puzzle.received.map(row => row.map(v => v / 2));
@@ -405,13 +412,13 @@ function renderPlayGrid() {
       cell.className = 'play-cell';
       cell.dataset.r = r;
       cell.dataset.c = c;
-      // ▲ = inflicted (damage dealt out), ▼ = received (damage taken in)
+      // Diagonal split: left triangle = inflicted (attack), right = received (defense)
       cell.innerHTML =
         `<div class="cell-notes"></div>` +
         `<div class="cell-value"></div>` +
         `<div class="cell-constraints">` +
-          `<span class="c-i" title="Inflicted">▲${formatHalfNumber(inflicted[r][c])}</span>` +
-          `<span class="c-r" title="Received">▼${formatHalfNumber(received[r][c])}</span>` +
+          `<span class="c-i" title="Inflicted (damage dealt out)">${formatHalfNumber(inflicted[r][c])}</span>` +
+          `<span class="c-r" title="Received (damage taken in)">${formatHalfNumber(received[r][c])}</span>` +
         `</div>`;
       cell.addEventListener('click', () => {
         if (state.selected?.r === r && state.selected?.c === c) deselectCell();
@@ -661,16 +668,14 @@ dom.showSolutionBtn.addEventListener('click', async () => {
   setStatus('loading', 'Solving puzzle…');
 
   try {
-    const { sel, inflicted, received, n } = state.puzzle;
-    // The solver uses ×2 integer-scaled values internally (see src/types.js dataInt).
-    // state.puzzle was normalised to real values by normalizePuzzle(), so we
-    // must re-scale before sending — otherwise the solver finds no match and
-    // returns null, crashing renderSolution with "not iterable".
-    const scale = arr => arr.map(row => row.map(v => v * 2));
+    const { sel, n, _rawInflicted: inflicted, _rawReceived: received } = state.puzzle;
+    // Send the original ×2 integer-scaled arrays (saved by normalizePuzzle).
+    // The server solver uses getEffectiveness(integer=true) so its sums are
+    // in the same scale — no conversion needed here.
     const res = await fetch('/api/solve', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ sel, inflicted: scale(inflicted), received: scale(received), n }),
+      body:    JSON.stringify({ sel, inflicted, received, n }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

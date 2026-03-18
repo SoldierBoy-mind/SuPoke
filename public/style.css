@@ -314,7 +314,18 @@ h1, h2 { line-height: 1.2; }
   padding: clamp(3px, 1vw, 6px);
   border: 2px solid var(--border);
   border-radius: var(--radius);
-  background: var(--bg);
+  /*
+   * Diagonal split: top-left triangle (attack) = light blue,
+   * bottom-right triangle (defense) = light red/pink.
+   * A 1px border-colour stripe at 50% draws the dividing line.
+   * Hover/selected/wrong states override this background entirely.
+   */
+  background: linear-gradient(
+    to bottom right,
+    var(--blue-bg)  49%,
+    var(--border)   50%,
+    var(--red-bg)   51%
+  );
   cursor: pointer;
   user-select: none;
   overflow: hidden;     /* prevent cell content from breaking grid layout */
@@ -335,11 +346,13 @@ h1, h2 { line-height: 1.2; }
   display: flex;
   flex-wrap: wrap;
   gap: 1px;
-  /* Reserve a fixed fraction of the cell; overflow is hidden by parent */
   flex-shrink: 0;
   max-height: 36%;
   overflow: hidden;
   margin-bottom: 1px;
+  /* Must sit above the .cell-constraints diagonal overlay */
+  position: relative;
+  z-index: 1;
 }
 .note-chip {
   padding: 1px 3px;
@@ -355,11 +368,14 @@ h1, h2 { line-height: 1.2; }
 /* Assigned type name (centre of cell) */
 .cell-value {
   flex: 1;
-  min-height: 0;    /* allow flex-shrink inside aspect-ratio cell */
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  /* Must sit above the .cell-constraints diagonal overlay */
+  position: relative;
+  z-index: 1;
 }
 .cell-type-name {
   padding: 2px clamp(4px, 1.5vw, 9px);
@@ -380,20 +396,46 @@ h1, h2 { line-height: 1.2; }
   line-height: 1;
 }
 
-/* Constraints (bottom of cell) — ▲ inflicted, ▼ received */
+/* ── Diagonal split constraint overlay ─────────────────────────────────────── */
+/*
+ * .cell-constraints covers the entire cell (inset: 0) and sits behind the
+ * notes and type-name layers (z-index: 0). The diagonal gradient runs from
+ * the top-left to the bottom-right corner of the full cell.
+ * pointer-events: none ensures the overlay never intercepts clicks.
+ */
 .cell-constraints {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-family: var(--mono);
-  font-size: clamp(0.48rem, 1.5vw, 0.65rem);
-  font-weight: 700;
-  flex-shrink: 0;
-  margin-top: 1px;
-  opacity: 0.8;
+  /* Transparent overlay — only used to position .c-i and .c-r absolutely.
+     The diagonal gradient now lives on .play-cell so state backgrounds
+     (hover, selected, wrong) can override it cleanly. */
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
 }
-.c-i { color: var(--blue); }
-.c-r { color: var(--red);  }
+
+/* Attack (inflicted) — top-left corner, above the diagonal */
+.c-i {
+  position: absolute;
+  top:  5px;
+  left: 5px;
+  font-family: var(--mono);
+  font-size: clamp(0.6rem, 1.8vw, 0.82rem);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--blue);
+}
+
+/* Defense (received) — bottom-right corner, below the diagonal */
+.c-r {
+  position: absolute;
+  bottom: 5px;
+  right:  5px;
+  font-family: var(--mono);
+  font-size: clamp(0.6rem, 1.8vw, 0.82rem);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--red);
+}
 
 /* ── Type picker panel ─────────────────────────────────────────────────────── */
 

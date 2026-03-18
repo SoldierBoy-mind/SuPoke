@@ -48,7 +48,7 @@ export class ApiError extends Error {
 const MAX_GENERATION_ATTEMPTS = 100;
 
 /** Valid grid sizes accepted by the API. */
-const VALID_SIZES = new Set([3, 4, 5]);
+const VALID_SIZES = new Set([3, 4, 5, 6, 7]);
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
