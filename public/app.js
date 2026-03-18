@@ -662,10 +662,15 @@ dom.showSolutionBtn.addEventListener('click', async () => {
 
   try {
     const { sel, inflicted, received, n } = state.puzzle;
+    // The solver uses ×2 integer-scaled values internally (see src/types.js dataInt).
+    // state.puzzle was normalised to real values by normalizePuzzle(), so we
+    // must re-scale before sending — otherwise the solver finds no match and
+    // returns null, crashing renderSolution with "not iterable".
+    const scale = arr => arr.map(row => row.map(v => v * 2));
     const res = await fetch('/api/solve', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ sel, inflicted, received, n }),
+      body:    JSON.stringify({ sel, inflicted: scale(inflicted), received: scale(received), n }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
