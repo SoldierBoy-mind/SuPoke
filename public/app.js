@@ -17,10 +17,10 @@ const ALL_TYPES = [
 ];
 
 // Row = attacker, columns match ALL_TYPES order above.
-// Values are integer-scaled (× 2): 0→0, 0.5→1, 1→2, 2→4.
-// Must stay in sync with dataInt in src/types.js so local validation
-// produces the same constraint sums as the server.
-const EFF_DATA = {
+// Kept as the ×2 integer-scaled mirror of dataInt in src/types.js.
+// Values: 0→immune, 1→½×, 2→1×, 4→2×.
+// EFF_DATA (real values) is derived below — never edit this manually.
+const EFF_DATA_INT = {
   Normal:   [2,2,2,2,2,1,2,0,1,2,2,2,2,2,2,2,2,2],
   Fighting: [4,2,1,1,2,4,1,0,4,2,2,2,2,1,4,2,4,1],
   Flying:   [2,4,2,2,2,1,4,2,1,2,2,4,1,2,2,2,2,2],
@@ -41,6 +41,15 @@ const EFF_DATA = {
   Fairy:    [2,4,2,1,2,2,2,2,1,1,2,2,2,2,2,4,4,2],
 };
 
+/**
+ * Real effectiveness values (0, 0.5, 1, 2) derived programmatically by
+ * halving every integer in EFF_DATA_INT. This is the canonical Pokémon
+ * multiplier scale used for all frontend computation and display.
+ */
+const EFF_DATA = Object.fromEntries(
+  Object.entries(EFF_DATA_INT).map(([type, row]) => [type, row.map(v => v / 2)])
+);
+
 function getEff(atk, def) {
   return EFF_DATA[atk][ALL_TYPES.indexOf(def)];
 }
@@ -58,12 +67,16 @@ function getNeighbors(i, j, N) {
 
 // ── Visual maps ───────────────────────────────────────────────────────────────
 
-/** 2-char abbreviations used in note chips so they fit inside small cells. */
+/**
+ * 3-char uppercase abbreviations for note chips.
+ * Kept distinct from each other and from the ▲/▼ constraint labels
+ * to avoid confusion on small mobile screens.
+ */
 const TYPE_ABBR = {
-  Normal:'No', Fighting:'Ft', Flying:'Fl', Poison:'Po', Ground:'Gr',
-  Rock:'Ro', Bug:'Bu', Ghost:'Gh', Steel:'St', Fire:'Fr',
-  Water:'Wa', Grass:'Gs', Electric:'El', Psychic:'Ps', Ice:'Ic',
-  Dragon:'Dr', Dark:'Dk', Fairy:'Fa',
+  Normal:'NRM', Fighting:'FGT', Flying:'FLY', Poison:'PSN', Ground:'GRD',
+  Rock:'ROK', Bug:'BUG', Ghost:'GHO', Steel:'STL', Fire:'FIR',
+  Water:'WAT', Grass:'GRS', Electric:'ELC', Psychic:'PSY', Ice:'ICE',
+  Dragon:'DRG', Dark:'DRK', Fairy:'FAI',
 };
 
 const TYPE_COLORS = {
@@ -97,8 +110,41 @@ function applyTypeStyle(el, type) {
   el.style.color = text;
 }
 
-function fmt(n) {
-  return n % 1 === 0 ? String(n) : n.toFixed(1);
+/**
+ * Formats a real effectiveness value or constraint sum for display.
+ * Whole numbers render without a decimal; halves use the ½ glyph.
+ *   0   → "0"
+ *   0.5 → "½"
+ *   1   → "1"
+ *   1.5 → "1½"
+ *   2   → "2"
+ * All expected values in this game are multiples of 0.5, so this covers
+ * every case without needing a general decimal formatter.
+ */
+function formatHalfNumber(n) {
+  if (n % 1 === 0) return String(n);           // integer: no decimal needed
+  const whole = Math.floor(n);
+  return whole === 0 ? '½' : `${whole}½`;      // e.g. 0.5→"½", 1.5→"1½"
+}
+
+// ── Server data normalisation ─────────────────────────────────────────────────
+
+/**
+ * Converts server puzzle data from ×2 integer scaling to real effectiveness
+ * values (0, 0.5, 1, 2). The server uses integer scaling internally
+ * (src/types.js dataInt) to avoid floating-point drift in the solver; we
+ * divide by 2 exactly once at the API boundary so the rest of the frontend
+ * always works with canonical Pokémon multipliers.
+ *
+ * Mutates the puzzle object in place and returns it for chaining.
+ * @param {object} puzzle - Raw response from POST /api/generate.
+ * @returns {object} The same puzzle with eSub, inflicted, received halved.
+ */
+function normalizePuzzle(puzzle) {
+  puzzle.eSub      = puzzle.eSub.map(row => row.map(v => v / 2));
+  puzzle.inflicted = puzzle.inflicted.map(row => row.map(v => v / 2));
+  puzzle.received  = puzzle.received.map(row => row.map(v => v / 2));
+  return puzzle;
 }
 
 // ── Application state ─────────────────────────────────────────────────────────
@@ -359,12 +405,13 @@ function renderPlayGrid() {
       cell.className = 'play-cell';
       cell.dataset.r = r;
       cell.dataset.c = c;
+      // ▲ = inflicted (damage dealt out), ▼ = received (damage taken in)
       cell.innerHTML =
         `<div class="cell-notes"></div>` +
         `<div class="cell-value"></div>` +
         `<div class="cell-constraints">` +
-          `<span class="c-i">I&thinsp;${fmt(inflicted[r][c])}</span>` +
-          `<span class="c-r">R&thinsp;${fmt(received[r][c])}</span>` +
+          `<span class="c-i" title="Inflicted">▲${formatHalfNumber(inflicted[r][c])}</span>` +
+          `<span class="c-r" title="Received">▼${formatHalfNumber(received[r][c])}</span>` +
         `</div>`;
       cell.addEventListener('click', () => {
         if (state.selected?.r === r && state.selected?.c === c) deselectCell();
@@ -449,7 +496,8 @@ function renderPicker() {
   dom.pickerTypes.innerHTML = '';
   for (const type of sel) {
     const btn = document.createElement('button');
-    btn.className   = 'picker-type-btn';
+    btn.type      = 'button';  // prevent accidental form submission
+    btn.className = 'picker-type-btn';
     btn.textContent = type;
     applyTypeStyle(btn, type);
 
@@ -493,7 +541,10 @@ function renderMatrix(sel, eSub) {
 
     row.forEach(val => {
       const td = tr.insertCell();
-      td.textContent = fmt(val);
+      // eSub values are now real floats (0, 0.5, 1, 2) after normalizePuzzle.
+      // Strict equality is safe: each value is an exact IEEE-754 float
+      // produced by dividing a small integer by 2.
+      td.textContent = formatHalfNumber(val);
       td.className   = 'matrix-cell ' + (
         val === 2   ? 'eff-super'  :
         val === 0.5 ? 'eff-weak'   :
@@ -566,7 +617,8 @@ dom.generateBtn.addEventListener('click', async () => {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error ?? `Server error ${res.status}`);
     }
-    state.puzzle = await res.json();
+    // Normalise: convert server's ×2 integer-scaled values to real floats
+    state.puzzle = normalizePuzzle(await res.json());
     const a = state.puzzle.attempts;
     setStatus('success', `Unique puzzle generated in ${a} attempt${a === 1 ? '' : 's'}.`);
     initGameState();
@@ -580,8 +632,11 @@ dom.generateBtn.addEventListener('click', async () => {
   }
 });
 
-// Reset
-dom.resetBtn.addEventListener('click', resetGame);
+// Reset — require confirmation to prevent accidental progress loss
+dom.resetBtn.addEventListener('click', () => {
+  if (!confirm('Reset the board? Your progress will be lost.')) return;
+  resetGame();
+});
 
 // Submit
 dom.submitBtn.addEventListener('click', () => {
@@ -688,4 +743,32 @@ document.addEventListener('click', e => {
   if (dom.playGrid.contains(e.target)) return;
   if (dom.typePicker.contains(e.target)) return;
   deselectCell();
+});
+
+// ── Theme toggle ──────────────────────────────────────────────────────────────
+
+const themeBtn = document.getElementById('theme-toggle');
+
+/** Applies `dark` (boolean) to <body> and keeps the button icon in sync. */
+function applyTheme(dark) {
+  document.body.classList.toggle('dark', dark);
+  themeBtn.textContent  = dark ? '☀️' : '🌙';
+  themeBtn.title        = dark ? 'Switch to light mode' : 'Switch to dark mode';
+  themeBtn.setAttribute('aria-label', themeBtn.title);
+}
+
+// Initialise: stored preference → system preference → light
+const storedTheme  = localStorage.getItem('theme');
+const systemDark   = window.matchMedia('(prefers-color-scheme: dark)').matches;
+applyTheme(storedTheme === 'dark' || (storedTheme === null && systemDark));
+
+themeBtn.addEventListener('click', () => {
+  const dark = !document.body.classList.contains('dark');
+  applyTheme(dark);
+  localStorage.setItem('theme', dark ? 'dark' : 'light');
+});
+
+// Keep in sync if the user changes their OS theme while the page is open
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+  if (localStorage.getItem('theme') === null) applyTheme(e.matches);
 });

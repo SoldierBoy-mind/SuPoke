@@ -39,6 +39,36 @@
   --ease:  140ms ease;
 }
 
+/* ── Dark theme ────────────────────────────────────────────────────────────── */
+
+/* Override only the colour variables; geometry/font variables stay the same. */
+body.dark {
+  --bg:           #0f172a;
+  --surface:      #1e293b;
+  --border:       #334155;
+  --text:         #f1f5f9;
+  --text-muted:   #94a3b8;
+
+  --primary-light: rgba(79, 70, 229, 0.18);
+  --primary-ring:  rgba(79, 70, 229, 0.40);
+
+  --green-bg:     rgba(22, 163, 74, 0.15);
+  --green-border: #166534;
+  --green-ring:   rgba(22, 163, 74, 0.35);
+
+  --red-bg:       rgba(220, 38, 38, 0.15);
+  --red-border:   #991b1b;
+  --red-ring:     rgba(220, 38, 38, 0.35);
+
+  --blue-bg:      rgba(37, 99, 235, 0.15);
+  --blue-border:  #1e3a8a;
+
+  --amber-bg:     rgba(180, 83, 9, 0.20);
+
+  --shadow-sm:    0 1px 2px rgba(0,0,0,.40);
+  --shadow:       0 2px 8px rgba(0,0,0,.40), 0 1px 3px rgba(0,0,0,.30);
+}
+
 /* ── Reset ─────────────────────────────────────────────────────────────────── */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -50,6 +80,25 @@ h1, h2 { line-height: 1.2; }
 
 .app      { max-width: 780px; margin: 0 auto; padding: 20px 16px 64px; }
 .app-main { display: flex; flex-direction: column; gap: 14px; }
+
+/* ── Theme toggle ──────────────────────────────────────────────────────────── */
+
+/* Fixed so it remains reachable while scrolling on long puzzle pages. */
+.theme-toggle {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 100;
+  padding: 7px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 1.1rem;
+  line-height: 1;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--ease), background var(--ease);
+}
+.theme-toggle:hover { border-color: var(--primary); background: var(--primary-light); }
 
 /* ── Header ────────────────────────────────────────────────────────────────── */
 
@@ -219,7 +268,7 @@ h1, h2 { line-height: 1.2; }
 .matrix-corner, .matrix-header, .matrix-row-label { font-weight: 700; font-size: 0.78rem; }
 .matrix-corner  { background: var(--bg); }
 .matrix-cell    { font-family: var(--mono); font-size: 0.825rem; }
-.eff-super      { background: #dcfce7; color: #15803d; font-weight: 800; }
+.eff-super      { background: var(--green-bg); color: var(--green); font-weight: 800; }
 .eff-weak       { background: var(--amber-bg); color: var(--amber); }
 .eff-immune     { background: var(--red-bg); color: var(--red); font-weight: 800; }
 .eff-normal     { background: var(--surface); color: var(--text-muted); }
@@ -253,22 +302,27 @@ h1, h2 { line-height: 1.2; }
 
 /* ── Interactive play grid ─────────────────────────────────────────────────── */
 
-.play-grid { gap: 6px; }
+.play-grid { gap: 4px; }
 
 .play-cell {
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 88px;
-  padding: 6px;
+  /* aspect-ratio keeps cells square on any screen size */
+  aspect-ratio: 1 / 1;
+  min-height: 0;        /* let aspect-ratio control height; no fixed floor */
+  padding: clamp(3px, 1vw, 6px);
   border: 2px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg);
   cursor: pointer;
   user-select: none;
+  overflow: hidden;     /* prevent cell content from breaking grid layout */
   transition: border-color var(--ease), background var(--ease), box-shadow var(--ease);
   outline: none;
 }
+/* Tap feedback for touch devices */
+.play-cell:active { transform: scale(0.95); }
 .play-cell:hover                  { border-color: var(--primary); background: var(--primary-light); }
 .play-cell.selected               { border-color: var(--primary); background: var(--primary-light); box-shadow: 0 0 0 3px var(--primary-ring); }
 .play-cell.wrong                  { border-color: var(--red);     background: var(--red-bg);         box-shadow: 0 0 0 3px var(--red-ring);     }
@@ -276,56 +330,67 @@ h1, h2 { line-height: 1.2; }
 .play-cell.locked                 { cursor: default; }
 .play-cell.locked:hover           { border-color: var(--border); background: var(--bg); }
 
-/* Notes area (top of cell) */
+/* Notes area (top of cell) — capped so notes never push value/constraints out */
 .cell-notes {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
-  min-height: 18px;
-  margin-bottom: 2px;
+  gap: 1px;
+  /* Reserve a fixed fraction of the cell; overflow is hidden by parent */
+  flex-shrink: 0;
+  max-height: 36%;
+  overflow: hidden;
+  margin-bottom: 1px;
 }
 .note-chip {
-  padding: 1px 4px;
+  padding: 1px 3px;
   border-radius: 3px;
-  font-size: 0.58rem;
+  font-size: clamp(0.42rem, 1.4vw, 0.56rem);
   font-weight: 800;
-  letter-spacing: 0.1px;
-  line-height: 1.4;
+  letter-spacing: 0;
+  line-height: 1.3;
   opacity: 0.9;
+  white-space: nowrap;
 }
 
 /* Assigned type name (centre of cell) */
 .cell-value {
   flex: 1;
+  min-height: 0;    /* allow flex-shrink inside aspect-ratio cell */
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 .cell-type-name {
-  padding: 3px 9px;
+  padding: 2px clamp(4px, 1.5vw, 9px);
   border-radius: var(--radius-sm);
-  font-size: 0.78rem;
+  font-size: clamp(0.55rem, 2vw, 0.78rem);
   font-weight: 800;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
   text-shadow: 0 1px 2px rgba(0,0,0,.25);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 .cell-placeholder {
-  font-size: 1.5rem;
+  font-size: clamp(1rem, 3vw, 1.5rem);
   color: var(--border);
   font-weight: 300;
   line-height: 1;
 }
 
-/* Constraints (bottom of cell) */
+/* Constraints (bottom of cell) — ▲ inflicted, ▼ received */
 .cell-constraints {
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-family: var(--mono);
-  font-size: 0.65rem;
+  font-size: clamp(0.48rem, 1.5vw, 0.65rem);
   font-weight: 700;
-  margin-top: 2px;
-  opacity: 0.75;
+  flex-shrink: 0;
+  margin-top: 1px;
+  opacity: 0.8;
 }
 .c-i { color: var(--blue); }
 .c-r { color: var(--red);  }
@@ -433,14 +498,19 @@ h1, h2 { line-height: 1.2; }
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 64px;
-  padding: 10px 8px;
+  /* Square cells matching the play grid */
+  aspect-ratio: 1 / 1;
+  min-height: 0;
+  padding: clamp(4px, 1.5vw, 10px);
   border-radius: var(--radius-sm);
   font-weight: 800;
-  font-size: 0.82rem;
-  letter-spacing: 0.3px;
+  font-size: clamp(0.6rem, 2vw, 0.82rem);
+  letter-spacing: 0.2px;
   text-shadow: 0 1px 3px rgba(0,0,0,.3);
   box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .verify-result {
@@ -456,10 +526,11 @@ h1, h2 { line-height: 1.2; }
 /* ── Responsive ────────────────────────────────────────────────────────────── */
 
 @media (max-width: 480px) {
+  .app              { padding: 12px 10px 48px; }
+  .card             { padding: 14px; }
   .controls-card    { flex-direction: column; align-items: flex-start; }
   .action-spread    { flex-direction: column; align-items: stretch; }
   .action-spread .btn { text-align: center; justify-content: center; }
-  .play-cell        { min-height: 72px; }
-  .cell-type-name   { font-size: 0.7rem; }
-  .cell-constraints { font-size: 0.6rem; }
+  /* cell sizing is handled by aspect-ratio + clamp; only override play-grid gap */
+  .play-grid        { gap: 3px; }
 }

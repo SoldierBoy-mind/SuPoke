@@ -11,6 +11,8 @@
 <div class="app">
 
   <header class="app-header">
+    <button type="button" id="theme-toggle" class="theme-toggle" title="Switch to dark mode"
+            aria-label="Toggle dark mode">🌙</button>
     <h1>SuPoke</h1>
     <p class="subtitle">A Sudoku-style logic puzzle based on Pokémon type effectiveness</p>
   </header>
@@ -22,12 +24,12 @@
       <div class="size-selector">
         <span class="label">Grid size</span>
         <div class="size-buttons" role="group" aria-label="Grid size">
-          <button class="size-btn active" data-n="3">3 × 3</button>
-          <button class="size-btn"        data-n="4">4 × 4</button>
-          <button class="size-btn"        data-n="5">5 × 5</button>
+          <button type="button" class="size-btn active" data-n="3">3 × 3</button>
+          <button type="button" class="size-btn"        data-n="4">4 × 4</button>
+          <button type="button" class="size-btn"        data-n="5">5 × 5</button>
         </div>
       </div>
-      <button id="generate-btn" class="btn btn-primary">Generate Puzzle</button>
+      <button type="button" id="generate-btn" class="btn btn-primary">Generate Puzzle</button>
     </section>
 
     <!-- ── Status bar ─────────────────────────────────────────────────────── -->
@@ -44,7 +46,7 @@
 
       <!-- Effectiveness matrix (collapsible) -->
       <section class="card">
-        <button id="matrix-toggle" class="collapsible-header"
+        <button type="button" id="matrix-toggle" class="collapsible-header"
                 aria-expanded="false" aria-controls="matrix-content">
           <span>Effectiveness Matrix</span>
           <span class="chevron" aria-hidden="true">›</span>
@@ -54,10 +56,10 @@
             Row&thinsp;=&thinsp;attacker &nbsp;·&nbsp; Column&thinsp;=&thinsp;defender
             &nbsp;&nbsp;
             <span class="legend">
-              <span class="legend-item eff-super">4×</span>
-              <span class="legend-item eff-weak">1×</span>
+              <span class="legend-item eff-super">2×</span>
+              <span class="legend-item eff-weak">½×</span>
               <span class="legend-item eff-immune">0×</span>
-              <span class="legend-item eff-normal">2×</span>
+              <span class="legend-item eff-normal">1×</span>
             </span>
           </p>
           <div class="table-scroll">
@@ -87,10 +89,10 @@
           <div class="picker-top">
             <span id="picker-label" class="picker-label">Select a type for this cell</span>
             <div class="picker-actions">
-              <button id="notes-toggle" class="btn-tag" title="Toggle notes mode (N)">
+              <button type="button" id="notes-toggle" class="btn-tag" title="Toggle notes mode (N)">
                 ✎ Notes
               </button>
-              <button id="clear-btn" class="btn-tag btn-tag-danger" disabled>
+              <button type="button" id="clear-btn" class="btn-tag btn-tag-danger" disabled>
                 ✕ Clear
               </button>
             </div>
@@ -103,9 +105,9 @@
 
       <!-- ── Action row ────────────────────────────────────────────────────── -->
       <div class="action-row action-spread">
-        <button id="reset-btn"         class="btn btn-ghost">Reset</button>
-        <button id="show-solution-btn" class="btn btn-ghost">Show Solution</button>
-        <button id="submit-btn"        class="btn btn-primary" disabled>
+        <button type="button" id="reset-btn"         class="btn btn-ghost">Reset</button>
+        <button type="button" id="show-solution-btn" class="btn btn-ghost">Show Solution</button>
+        <button type="button" id="submit-btn"        class="btn btn-primary" disabled>
           Submit Solution
         </button>
       </div>
