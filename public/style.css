@@ -341,18 +341,30 @@ h1, h2 { line-height: 1.2; }
 .play-cell.locked                 { cursor: default; }
 .play-cell.locked:hover           { border-color: var(--border); background: var(--bg); }
 
-/* Notes area (top of cell) — capped so notes never push value/constraints out */
+/* Top row: attack number on the left, notes chips fill the right. */
+.cell-top-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 3px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+/* Bottom row: defense number pinned to the right edge. */
+.cell-bottom-row {
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+/* Notes area — grows to fill whatever space the attack number leaves. */
 .cell-notes {
   display: flex;
   flex-wrap: wrap;
   gap: 1px;
-  flex-shrink: 0;
-  max-height: 36%;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
-  margin-bottom: 1px;
-  /* Must sit above the .cell-constraints diagonal overlay */
-  position: relative;
-  z-index: 1;
 }
 .note-chip {
   padding: 1px 3px;
@@ -373,9 +385,6 @@ h1, h2 { line-height: 1.2; }
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  /* Must sit above the .cell-constraints diagonal overlay */
-  position: relative;
-  z-index: 1;
 }
 .cell-type-name {
   padding: 2px clamp(4px, 1.5vw, 9px);
@@ -396,40 +405,18 @@ h1, h2 { line-height: 1.2; }
   line-height: 1;
 }
 
-/* ── Diagonal split constraint overlay ─────────────────────────────────────── */
-/*
- * .cell-constraints covers the entire cell (inset: 0) and sits behind the
- * notes and type-name layers (z-index: 0). The diagonal gradient runs from
- * the top-left to the bottom-right corner of the full cell.
- * pointer-events: none ensures the overlay never intercepts clicks.
- */
-.cell-constraints {
-  /* Transparent overlay — only used to position .c-i and .c-r absolutely.
-     The diagonal gradient now lives on .play-cell so state backgrounds
-     (hover, selected, wrong) can override it cleanly. */
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* Attack (inflicted) — top-left corner, above the diagonal */
+/* Attack (inflicted) — top-left, in-flow inside .cell-top-row */
 .c-i {
-  position: absolute;
-  top:  5px;
-  left: 5px;
   font-family: var(--mono);
   font-size: clamp(0.6rem, 1.8vw, 0.82rem);
   font-weight: 700;
   line-height: 1;
   color: var(--blue);
+  flex-shrink: 0;
 }
 
-/* Defense (received) — bottom-right corner, below the diagonal */
+/* Defense (received) — bottom-right, in-flow inside .cell-bottom-row */
 .c-r {
-  position: absolute;
-  bottom: 5px;
-  right:  5px;
   font-family: var(--mono);
   font-size: clamp(0.6rem, 1.8vw, 0.82rem);
   font-weight: 700;

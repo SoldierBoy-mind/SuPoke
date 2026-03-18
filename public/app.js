@@ -412,12 +412,16 @@ function renderPlayGrid() {
       cell.className = 'play-cell';
       cell.dataset.r = r;
       cell.dataset.c = c;
-      // Diagonal split: left triangle = inflicted (attack), right = received (defense)
+      // Top row: attack number left, notes fill the remaining space right.
+      // Bottom row: defense number aligned to the right corner.
+      // Both numbers are in-flow, so notes can never overlap the attack value.
       cell.innerHTML =
-        `<div class="cell-notes"></div>` +
-        `<div class="cell-value"></div>` +
-        `<div class="cell-constraints">` +
+        `<div class="cell-top-row">` +
           `<span class="c-i" title="Inflicted (damage dealt out)">${formatHalfNumber(inflicted[r][c])}</span>` +
+          `<div class="cell-notes"></div>` +
+        `</div>` +
+        `<div class="cell-value"></div>` +
+        `<div class="cell-bottom-row">` +
           `<span class="c-r" title="Received (damage taken in)">${formatHalfNumber(received[r][c])}</span>` +
         `</div>`;
       cell.addEventListener('click', () => {
